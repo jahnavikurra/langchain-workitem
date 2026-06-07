@@ -67,38 +67,55 @@ def extract_text_from_pdf(content: bytes) -> str:
 
 def extract_text_from_image(content: bytes) -> str:
     image = Image.open(BytesIO(content))
-    return ocr_image(image)
+    text = ocr_image(image)
+
+    print(f"OCR RESULT LENGTH: {len(text)}")
+    print(f"OCR RESULT: {repr(text)}")
+
+    return text
 
 
 def ocr_image(image: Image.Image) -> str:
     image = image.convert("RGB")
 
-    # Crop optional blank edges a little by using grayscale processing
+    # Convert to grayscale
     image = ImageOps.grayscale(image)
 
-    # Enlarge small screenshot text
-    scale = 3
+    # Enlarge tiny screenshot text
+    scale = 5
     image = image.resize(
         (image.width * scale, image.height * scale),
         Image.Resampling.LANCZOS,
     )
 
     # Improve OCR readability
+    image = ImageEnhance.Contrast(image).enhance(4)
     image = image.filter(ImageFilter.SHARPEN)
-    image = ImageEnhance.Contrast(image).enhance(2.5)
 
-    # Try multiple OCR modes
+    # Convert to black/white for better screenshot OCR
+    image = image.point(lambda p: 255 if p > 180 else 0)
+
     configs = [
         "--oem 3 --psm 6",
+        "--oem 3 --psm 7",
         "--oem 3 --psm 11",
+        "--oem 3 --psm 12",
         "--oem 3 --psm 3",
     ]
 
     best_text = ""
 
     for config in configs:
-        text = pytesseract.image_to_string(image, config=config).strip()
-        if len(text) > len(best_text):
-            best_text = text
+        try:
+            text = pytesseract.image_to_string(
+                image,
+                config=config,
+            ).strip()
+
+            if len(text) > len(best_text):
+                best_text = text
+
+        except Exception as exc:
+            print(f"OCR failed for config {config}: {exc}")
 
     return best_text.strip()
