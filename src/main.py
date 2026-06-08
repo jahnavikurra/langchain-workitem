@@ -1,7 +1,66 @@
 import logging
 from typing import Optional
 
-from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form@app.post("/backlog/upload", response_model=BacklogChatResponse)
+async def backlog_upload(
+    file: UploadFile = File(...),
+    work_item_type: WorkItemType = Form("Product Backlog Item"),
+    template_name: Optional[str] = Form(None),
+    project_name: str = Form(...),
+    area_path: Optional[str] = Form(None),
+    iteration_path: Optional[str] = Form(None),
+):
+    try:
+        text = await extract_text_from_file(file)
+
+        logger.info(f"Upload file name: {file.filename}")
+        logger.info(f"Upload content type: {file.content_type}")
+        logger.info(f"Extracted text length: {len(text)}")
+        logger.info(f"Extracted text preview: {repr(text[:500])}")
+
+        if not text.strip():
+            logger.error(
+                f"No readable text found in uploaded file: {file.filename}"
+            )
+
+            raise HTTPException(
+                status_code=400,
+                detail="No readable text found in uploaded file"
+            )
+
+        message = f"""
+Source file: {file.filename}
+
+Extracted content:
+{text}
+"""
+
+        result = backlog_graph.invoke(
+            {
+                "message": message,
+                "work_item_type": work_item_type,
+                "template_name": template_name,
+                "project_name": project_name,
+                "area_path": area_path,
+                "iteration_path": iteration_path,
+                "chat_history": [],
+            }
+        )
+
+        parsed = result["parsed_response"]
+
+        return BacklogChatResponse(
+            assistant_message=parsed["assistant_message"],
+            progress_steps=parsed["progress_steps"],
+            items=parsed["items"],
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as ex:
+        logger.exception("Backlog upload failed")
+        raise HTTPException(status_code=500, detail=str(ex))
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.models import (
