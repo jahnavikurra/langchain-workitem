@@ -1,66 +1,7 @@
 import logging
 from typing import Optional
 
-from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form@app.post("/backlog/upload", response_model=BacklogChatResponse)
-async def backlog_upload(
-    file: UploadFile = File(...),
-    work_item_type: WorkItemType = Form("Product Backlog Item"),
-    template_name: Optional[str] = Form(None),
-    project_name: str = Form(...),
-    area_path: Optional[str] = Form(None),
-    iteration_path: Optional[str] = Form(None),
-):
-    try:
-        text = await extract_text_from_file(file)
-
-        logger.info(f"Upload file name: {file.filename}")
-        logger.info(f"Upload content type: {file.content_type}")
-        logger.info(f"Extracted text length: {len(text)}")
-        logger.info(f"Extracted text preview: {repr(text[:500])}")
-
-        if not text.strip():
-            logger.error(
-                f"No readable text found in uploaded file: {file.filename}"
-            )
-
-            raise HTTPException(
-                status_code=400,
-                detail="No readable text found in uploaded file"
-            )
-
-        message = f"""
-Source file: {file.filename}
-
-Extracted content:
-{text}
-"""
-
-        result = backlog_graph.invoke(
-            {
-                "message": message,
-                "work_item_type": work_item_type,
-                "template_name": template_name,
-                "project_name": project_name,
-                "area_path": area_path,
-                "iteration_path": iteration_path,
-                "chat_history": [],
-            }
-        )
-
-        parsed = result["parsed_response"]
-
-        return BacklogChatResponse(
-            assistant_message=parsed["assistant_message"],
-            progress_steps=parsed["progress_steps"],
-            items=parsed["items"],
-        )
-
-    except HTTPException:
-        raise
-
-    except Exception as ex:
-        logger.exception("Backlog upload failed")
-        raise HTTPException(status_code=500, detail=str(ex))
+from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.models import (
@@ -95,7 +36,7 @@ app.add_middleware(
 def health():
     return {
         "status": "ok",
-        "service": "backlog-assist"
+        "service": "backlog-assist",
     }
 
 
@@ -139,10 +80,15 @@ async def backlog_upload(
     try:
         text = await extract_text_from_file(file)
 
+        logger.info("Upload file name: %s", file.filename)
+        logger.info("Upload content type: %s", file.content_type)
+        logger.info("Extracted text length: %s", len(text))
+        logger.info("Extracted text preview: %r", text[:500])
+
         if not text.strip():
             raise HTTPException(
                 status_code=400,
-                detail="No readable text found in uploaded file"
+                detail="No readable text found in uploaded file",
             )
 
         message = f"""
@@ -189,7 +135,7 @@ def backlog_create(
         if not authorization.lower().startswith("bearer "):
             raise HTTPException(
                 status_code=401,
-                detail="Authorization header must be Bearer token"
+                detail="Authorization header must be Bearer token",
             )
 
         ado_token = authorization.replace("Bearer ", "").replace("bearer ", "").strip()
